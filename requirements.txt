@@ -1,0 +1,6 @@
+anthropic
+instructor
+langgraph
+pydantic
+python-dotenv
+typing_extensions

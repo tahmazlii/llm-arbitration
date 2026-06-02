@@ -2,6 +2,10 @@ from dotenv import load_dotenv
 load_dotenv() 
 
 from src.arbitration.critics import run_critic, ACCURACY_CRITIC_PROMPT, LOGIC_CRITIC_PROMPT, COMPLETENESS_CRITIC_PROMPT
+from src.arbitration.graph import graph
+
+
+question = "What were the causes of the 1929 stock market crash, and how did the U.S. government respond?"
 
 output = (
     "The 1929 stock market crash was caused mainly by excessive speculation and buying "
@@ -10,7 +14,12 @@ output = (
     "Federal Reserve to regulate banks and prevent future crashes."
 )
 
-for prompt in [ACCURACY_CRITIC_PROMPT, LOGIC_CRITIC_PROMPT, COMPLETENESS_CRITIC_PROMPT]:
-    critique = run_critic(prompt, output)
+result = graph.invoke({
+    "question": question,
+    "output": output,
+    "critiques": [],
+})
+
+for critique in result["critiques"]:
     print(critique.model_dump_json(indent=2))
     print("-" * 40)

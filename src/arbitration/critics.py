@@ -31,14 +31,17 @@ ACCURACY_CRITIC_PROMPT = (
     "assign a severity. Score 1-5 where 5 means no issues."
 )
 
-def run_critic(role_prompt: str, output_to_evaluate: str, model: str="claude-sonnet-4-6") -> Critique:
+def run_critic(role_prompt: str, output_to_evaluate: str, question: str | None = None , model: str="claude-sonnet-4-6") -> Critique:
+    user_content = f"Evaluate this output:\n\n{output_to_evaluate}"
+    if question:
+        user_content = f"Original question:\n{question}\n\n{user_content}"
     return client.messages.create(
         model = model,
         max_tokens = 1024,
         response_model= Critique,
         messages=[
             {"role": "system", "content": role_prompt},
-            {"role": "user", "content": f"Evaluate this output:\n\n{output_to_evaluate}"},
+            {"role": "user", "content": user_content},
 
         ],
     )
