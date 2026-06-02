@@ -23,3 +23,5 @@ result = graph.invoke({
 for critique in result["critiques"]:
     print(critique.model_dump_json(indent=2))
     print("-" * 40)
+
+print(result["disagreements"].model_dump_json(indent=2))

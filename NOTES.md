@@ -83,8 +83,57 @@ call returned — not a sequential loop. This is *why* the reducer is necessary.
   span for different reasons (e.g. all three flagged the Federal Reserve sentence
   here, but for accuracy / logic / completeness reasons respectively).
 
+## Phase 2b — Disagreement detector
+
+### What it does
+The `collector_node` is no longer a passthrough. It reads the three assembled
+critiques and produces a typed `DisagreementReport` capturing disagreement at
+two levels:
+- **Critique level:** `score_spread` (max − min of the three overall scores),
+  plus `highest_dimension` / `lowest_dimension` for context.
+- **Issue level:** `overlaps` — spans flagged by more than one critic, each
+  recording the critics involved and their per-issue severities.
+
+### Schema (in models.py)
+Three models, nested like Critique/Issue:
+- `CriticFlag` (dimension + severity) — one critic's take on a span.
+- `SpanOverlap` (span + list of CriticFlags) — one span multiple critics flagged.
+- `DisagreementReport` (score_spread, highest/lowest dimension, list of overlaps).
+
+### How overlaps are detected
+1. Flatten all issues across critiques into flags: (dimension, quote, severity).
+2. Group flags whose quotes match. Match = exact OR one quote is a substring of
+   the other (`quotes_match` helper).
+3. Keep only groups with flags from 2+ distinct dimensions (single-critic groups
+   aren't disagreements).
+4. Convert each surviving group into a SpanOverlap.
+
+Added `disagreements: NotRequired[DisagreementReport]` to ArbitrationState — no
+reducer (only the collector writes it, once). NotRequired because it doesn't
+exist until the collector runs, so it shouldn't be required at invoke time.
+
+### What it surfaced on the 1929 test (the payoff)
+- **WWII span** — flagged by all three, but severities differ (accuracy high,
+  logic high, completeness medium): a severity disagreement.
+- **Federal Reserve span** — all three at high: the "three lenses on one span"
+  case (wrong date / internal contradiction / thin response), now auto-detected.
+- **Causes span** — accuracy low vs. completeness high: a genuine substantive
+  disagreement the adjudicator will need to resolve. The detector found this
+  without any hand-coding for that specific span — the system working as intended.
+
+### Known limitations (for future improvement)
+- **Substring matching is crude.** Over-groups on short quotes; a future version
+  could use semantic/fuzzy matching, possibly an LLM judge for "same problem?".
+- **Intra-critic duplicate flags.** A single critic can contribute multiple flags
+  to one overlap if it wrote two issues quoting the same span (logic did this on
+  the WWII span — appeared twice). The 2+-distinct-dimensions filter still works
+  correctly, but the flags list can contain per-critic duplicates. Could dedupe
+  per dimension (e.g. keep highest severity per critic) later.
+- **Score ties** in highest/lowest dimension resolve to whichever max/min hits
+  first. Fine for now.
+
 ## Status
 - [x] Phase 1: three specialized critics with divergent failure detection
 - [x] Phase 2: LangGraph parallel orchestration (reducer-merged critique list)
-- [ ] Phase 2b: disagreement detector in the collector node
-- [ ] Phase 3: adjudicator agent
+- [x] Phase 2b: disagreement detector (score spread + span overlaps)
+- [ ] Phase 3: adjudicator agent (consumes the DisagreementReport)
