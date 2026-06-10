@@ -132,8 +132,54 @@ exist until the collector runs, so it shouldn't be required at invoke time.
 - **Score ties** in highest/lowest dimension resolve to whichever max/min hits
   first. Fine for now.
 
+## Phase 3 — Adjudicator agent
+
+### What it does
+A fourth node that runs *after* the collector (sequential, not parallel — it
+needs the disagreements). It receives the original output, the three critiques,
+and the DisagreementReport, reasons through the conflicts, and produces a typed
+`Verdict`. This is the layer that turns three opinions into one judgment.
+
+### Schema (Verdict, in models.py)
+- `quality` (1-10, holistic — note the different scale from critics' 1-5)
+- `confidence` (0-1)
+- `confirmed_issues` (list of `ConfirmedIssue`: quote, description, the
+  dimension(s) that raised it, the adjudicator's final severity, and the reason
+  it was upheld)
+- `dismissed_flags` (list of `DismissedFlag`: the span, the critic's original
+  flag, and the reason for overruling) — the field that makes this adjudication
+  rather than averaging
+- `summary` (one-paragraph plain-language assessment)
+
+### Implementation
+- Dedicated `run_adjudicator(output, critiques, report, question, model)` in
+  critics.py — not folded into run_critic, since inputs/output differ enough.
+- Critiques and report are serialized into the prompt with `model_dump_json` —
+  the adjudicator is an LLM, so its input has to be text; this is the bridge
+  from typed objects back to text.
+- Runs on `claude-opus-4-7` (not Sonnet like the critics): the strongest model
+  goes where the hardest reasoning is — weighing conflicting evidence.
+- Wired in graph: collector → adjudicator → END (replaced collector → END).
+  Added `verdict: NotRequired[Verdict]` to state (no reducer, written once).
+
+### What it demonstrated on the 1929 test (the payoff)
+- **Consolidated overlaps, not averaged them.** Folded the WWII span's accuracy
+  + logic + completeness flags into one confirmed issue, noting both the factual
+  error and the post hoc fallacy as the same underlying defect (the "three
+  lenses on one span" insight, now automatic).
+- **Dismissed a flag with reasoning.** Overruled completeness's separate
+  "Hoover-era inaction" flag as double-counting an already-confirmed issue. A
+  real adjudication decision, not aggregation.
+- **Resolved the severity disagreement.** The causes sentence (accuracy=low vs.
+  completeness=high) was confirmed at *medium*, with explicit justification:
+  legitimate causes named, so omission not error. Reasoned to a judgment and
+  defended it — the project's whole thesis in one field.
+
 ## Status
 - [x] Phase 1: three specialized critics with divergent failure detection
 - [x] Phase 2: LangGraph parallel orchestration (reducer-merged critique list)
 - [x] Phase 2b: disagreement detector (score spread + span overlaps)
-- [ ] Phase 3: adjudicator agent (consumes the DisagreementReport)
+- [x] Phase 3: adjudicator agent producing reasoned verdicts
+- [ ] Phase 4: Verdict Explorer UI
+- [ ] Phase 5: FastAPI service + analytics
+- [ ] Phase 6: portfolio polish (test cases, README narrative, diagram)
