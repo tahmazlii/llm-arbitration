@@ -25,3 +25,5 @@ for critique in result["critiques"]:
     print("-" * 40)
 
 print(result["disagreements"].model_dump_json(indent=2))
+
+print(result["verdict"].model_dump_json(indent=2))

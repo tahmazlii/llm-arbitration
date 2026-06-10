@@ -1,8 +1,8 @@
 from typing import Annotated
 from typing_extensions import TypedDict, NotRequired
 from operator import add
-from .models import Critique, DisagreementReport, CriticFlag, SpanOverlap
-from .critics import run_critic, ACCURACY_CRITIC_PROMPT, LOGIC_CRITIC_PROMPT, COMPLETENESS_CRITIC_PROMPT
+from .models import Critique, DisagreementReport, CriticFlag, SpanOverlap, Verdict
+from .critics import run_critic,run_adjudicator, ACCURACY_CRITIC_PROMPT, LOGIC_CRITIC_PROMPT, COMPLETENESS_CRITIC_PROMPT
 from langgraph.graph import StateGraph, START, END
 
 class ArbitrationState(TypedDict):
@@ -10,6 +10,7 @@ class ArbitrationState(TypedDict):
     output: str
     critiques: Annotated[list[Critique],add]
     disagreements: NotRequired[DisagreementReport]
+    verdict: NotRequired[Verdict] 
 
 def logic_node(state: ArbitrationState) -> dict:
     critique = run_critic(LOGIC_CRITIC_PROMPT, state["output"])
@@ -65,12 +66,21 @@ def collector_node(state: ArbitrationState) -> dict:
     )
     return {"disagreements" : report}
 
+def adjudicator_node(state: ArbitrationState) -> dict:
+    verdict = run_adjudicator(
+        state["output"],
+        state["critiques"],
+        state["disagreements"],
+    )
+    return {"verdict" : verdict}
+
 builder = StateGraph(ArbitrationState)
 
 builder.add_node("logic", logic_node)
 builder.add_node("accuracy", accuracy_node)
 builder.add_node("completeness", completeness_node)
 builder.add_node("collector", collector_node)
+builder.add_node("adjudicator", adjudicator_node)
 
 builder.add_edge(START, "logic")
 builder.add_edge(START, "accuracy")
@@ -79,8 +89,9 @@ builder.add_edge(START, "completeness")
 builder.add_edge("logic", "collector")
 builder.add_edge("accuracy", "collector")
 builder.add_edge("completeness", "collector")
+builder.add_edge("collector", "adjudicator")
+builder.add_edge("adjudicator", END)
 
-builder.add_edge("collector", END)
 
 graph = builder.compile()
 

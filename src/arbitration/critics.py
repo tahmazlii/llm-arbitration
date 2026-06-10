@@ -1,7 +1,7 @@
 import instructor
 import anthropic
 
-from .models import Critique
+from .models import Critique,Verdict
 
 client = instructor.from_anthropic(anthropic.Anthropic())
 
@@ -31,6 +31,17 @@ ACCURACY_CRITIC_PROMPT = (
     "assign a severity. Score 1-5 where 5 means no issues."
 )
 
+ADJUDICATOR_PROMPT = (
+    "You are an Adjudicator. You receive an LLM output, three independent critiques "
+    "of it (accuracy, logic, completeness), and a report of where the critics "
+    "disagreed. Your job is to weigh the evidence and produce a final verdict. "
+    "Reason through each disagreement explicitly: for factual disputes, judge which "
+    "claim is correct; for logical disputes, trace the reasoning; for completeness "
+    "disputes, re-read the original question. Uphold issues that are real (confirmed "
+    "issues) and overrule those that aren't (dismissed flags), giving your reason for "
+    "each decision. Then assign an overall quality score 1-10 and a confidence level."
+)
+
 def run_critic(role_prompt: str, output_to_evaluate: str, question: str | None = None , model: str="claude-sonnet-4-6") -> Critique:
     user_content = f"Evaluate this output:\n\n{output_to_evaluate}"
     if question:
@@ -46,3 +57,24 @@ def run_critic(role_prompt: str, output_to_evaluate: str, question: str | None =
         ],
     )
 
+def run_adjudicator(output, critiques, report, question=None, model = "claude-opus-4-7") -> Verdict: 
+    critiques_text = "\n\n".join(c.model_dump_json(indent=2) for c in critiques)
+    report_text = report.model_dump_json(indent=2)
+
+    user_content = (
+        f"Original output being evaluated: \n{output}\n\n"
+        f"The three critiques: \n{critiques_text}\n\n"
+        f"Disagreement report: \n{report_text}"
+    )
+    if question: 
+        user_content = f"Original question:\n{question}\n\n" + user_content
+
+    return client.messages.create(
+        model=model,
+        max_tokens=2048,
+        response_model=Verdict,
+        messages=[
+            {"role": "system", "content": ADJUDICATOR_PROMPT},
+            {"role": "user", "content": user_content},
+        ],
+    )
