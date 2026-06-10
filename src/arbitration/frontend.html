@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM Output Arbitration System</title>
+<style>
+  :root { --bg:#0f1115; --panel:#1a1d24; --border:#2a2f3a; --text:#e4e7eb; --muted:#8b92a0; --high:#e5484d; --med:#f5a623; --low:#3b82f6; --good:#30a46c; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.5; }
+  .wrap { max-width:880px; margin:0 auto; padding:32px 20px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:14px; margin-bottom:24px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:16px 0 6px; }
+  textarea { width:100%; background:var(--panel); border:1px solid var(--border); border-radius:8px; color:var(--text); padding:12px; font-size:14px; font-family:inherit; resize:vertical; }
+  button { margin-top:16px; background:var(--good); color:#fff; border:none; border-radius:8px; padding:10px 20px; font-size:14px; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:0.5; cursor:default; }
+  .verdict { margin-top:28px; }
+  .score { display:flex; align-items:baseline; gap:12px; margin-bottom:16px; }
+  .score b { font-size:32px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:14px 16px; margin-bottom:10px; }
+  .quote { font-style:italic; color:var(--text); border-left:3px solid var(--border); padding-left:10px; margin-bottom:8px; }
+  .tag { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:99px; margin-right:6px; text-transform:uppercase; }
+  .tag.high { background:rgba(229,72,77,0.15); color:var(--high); }
+  .tag.medium { background:rgba(245,166,35,0.15); color:var(--med); }
+  .tag.low { background:rgba(59,130,246,0.15); color:var(--low); }
+  .tag.dim { background:rgba(139,146,160,0.15); color:var(--muted); }
+  .section-title { font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin:24px 0 10px; }
+  .reason { color:var(--muted); font-size:13px; margin-top:8px; }
+  .summary { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px; margin-top:16px; }
+  .err { color:var(--high); margin-top:16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>LLM Output Arbitration System</h1>
+  <div class="sub">Three critics evaluate an output in parallel; an adjudicator resolves their disagreements into a verdict.</div>
+
+  <label>Original question</label>
+  <textarea id="question" rows="2">What were the causes of the 1929 stock market crash, and how did the U.S. government respond?</textarea>
+
+  <label>Output to evaluate</label>
+  <textarea id="output" rows="5">The 1929 stock market crash was caused mainly by excessive speculation and buying stocks on margin. Because the crash happened in 1929, it directly caused World War II, which began that same decade. The government responded by immediately creating the Federal Reserve to regulate banks and prevent future crashes.</textarea>
+
+  <button id="run" onclick="arbitrate()">Arbitrate</button>
+
+  <div id="result"></div>
+</div>
+
+<script>
+const API = "http://127.0.0.1:8000";
+
+async function arbitrate() {
+  const btn = document.getElementById("run");
+  const result = document.getElementById("result");
+  btn.disabled = true; btn.textContent = "Arbitrating…";
+  result.innerHTML = "";
+
+  try {
+    const res = await fetch(API + "/arbitrate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question: document.getElementById("question").value,
+        output: document.getElementById("output").value,
+      }),
+    });
+    if (!res.ok) throw new Error("Server returned " + res.status);
+    const data = await res.json();
+    render(data.verdict, data.id);
+  } catch (e) {
+    result.innerHTML = '<div class="err">Error: ' + e.message + '. Is the API running on port 8000?</div>';
+  } finally {
+    btn.disabled = false; btn.textContent = "Arbitrate";
+  }
+}
+
+function render(v, id) {
+  let html = '<div class="verdict">';
+  html += '<div class="score"><b>' + v.quality + '/10</b><span class="sub">confidence ' + (v.confidence*100).toFixed(0) + '% · id ' + id.slice(0,8) + '</span></div>';
+  html += '<div class="summary">' + escapeHtml(v.summary) + '</div>';
+
+  html += '<div class="section-title">Confirmed issues (' + v.confirmed_issues.length + ')</div>';
+  for (const issue of v.confirmed_issues) {
+    html += '<div class="card">';
+    html += '<div class="quote">' + escapeHtml(issue.quote) + '</div>';
+    html += '<span class="tag ' + issue.severity + '">' + issue.severity + '</span>';
+    for (const d of issue.dimensions) html += '<span class="tag dim">' + d + '</span>';
+    html += '<div style="margin-top:8px">' + escapeHtml(issue.description) + '</div>';
+    html += '<div class="reason">Upheld: ' + escapeHtml(issue.reason) + '</div>';
+    html += '</div>';
+  }
+
+  if (v.dismissed_flags.length) {
+    html += '<div class="section-title">Dismissed flags (' + v.dismissed_flags.length + ')</div>';
+    for (const f of v.dismissed_flags) {
+      html += '<div class="card">';
+      html += '<div class="quote">' + escapeHtml(f.span) + '</div>';
+      html += '<span class="tag dim">' + f.flag.dimension + '</span>';
+      html += '<div class="reason">Dismissed: ' + escapeHtml(f.reason) + '</div>';
+      html += '</div>';
+    }
+  }
+  html += '</div>';
+  document.getElementById("result").innerHTML = html;
+}
+
+function escapeHtml(s) {
+  const d = document.createElement("div"); d.textContent = s; return d.innerHTML;
+}
+</script>
+</body>
+</html>

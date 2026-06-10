@@ -10,3 +10,5 @@ venv/
 # Editor / OS
 .vscode/
 .DS_Store
+
+arbitrations.db

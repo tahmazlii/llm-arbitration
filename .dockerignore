@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+.git/
+arbitrations.db
+venv/
+.venv/
+frontend.html

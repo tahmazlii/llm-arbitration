@@ -4,3 +4,5 @@ langgraph
 pydantic
 python-dotenv
 typing_extensions
+fastapi
+uvicorn
