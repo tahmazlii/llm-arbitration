@@ -6,13 +6,13 @@ The core idea: different models with different prompts have different blind spot
 
 ## Demo
 
-<!-- To add the screenshot: `docker compose up`, open http://localhost:8000, submit the
-     pre-filled example, then capture the verdict panel (Cmd+Shift+4 on Mac, or
-     Cmd+Shift+4 then Space for the whole window). Save it as docs/verdict.png and
-     uncomment the line below. Make sure the dismissed-flag section is in frame —
-     that's the adjudication, and it's what separates this from vote-counting. -->
-*[screenshot here]*
-<!-- ![A verdict: 2/10 with confirmed issues and a dismissed flag](docs/verdict.png) -->
+A deliberately flawed answer goes in; the adjudicator returns a scored verdict with its reasoning.
+
+![The verdict explorer: a question and flawed output, scored 2 out of 10 with 97% confidence, above a summary of the errors found](docs/verdict-summary.png)
+
+Each confirmed issue carries the exact quoted span, a severity, the critic dimensions that flagged it, and the adjudicator's reason for upholding it. The third issue is the interesting one — accuracy rated it low, completeness rated it high, and the adjudicator settled it at **medium** with an explicit justification rather than averaging the two.
+
+![Three confirmed issues, each with a quoted span, severity tag, contributing critic dimensions, and the adjudicator's stated reason for upholding it](docs/verdict-issues.png)
 
 
 ## Architecture
