@@ -180,6 +180,6 @@ and the DisagreementReport, reasons through the conflicts, and produces a typed
 - [x] Phase 2: LangGraph parallel orchestration (reducer-merged critique list)
 - [x] Phase 2b: disagreement detector (score spread + span overlaps)
 - [x] Phase 3: adjudicator agent producing reasoned verdicts
-- [ ] Phase 4: Verdict Explorer UI
-- [ ] Phase 5: FastAPI service + analytics
-- [ ] Phase 6: portfolio polish (test cases, README narrative, diagram)
+- [x] Phase 4: Verdict Explorer UI (served by the API at `/`)
+- [x] Phase 5: async FastAPI service + SQLite audit trail + Docker Compose
+- [ ] Phase 6: portfolio polish (demo recording, test cases, diagram)

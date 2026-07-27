@@ -48,7 +48,7 @@
 </div>
 
 <script>
-const API = "http://127.0.0.1:8000";
+const API = "";  // same origin as the page that served this file
 
 async function arbitrate() {
   const btn = document.getElementById("run");
@@ -65,11 +65,15 @@ async function arbitrate() {
         output: document.getElementById("output").value,
       }),
     });
-    if (!res.ok) throw new Error("Server returned " + res.status);
+    if (!res.ok) {
+      // the API puts the underlying cause (bad key, no credit, rate limit) in `detail`
+      const body = await res.json().catch(() => null);
+      throw new Error(body && body.detail ? body.detail : "Server returned " + res.status);
+    }
     const data = await res.json();
     render(data.verdict, data.id);
   } catch (e) {
-    result.innerHTML = '<div class="err">Error: ' + e.message + '. Is the API running on port 8000?</div>';
+    result.innerHTML = '<div class="err">Error: ' + escapeHtml(e.message) + '</div>';
   } finally {
     btn.disabled = false; btn.textContent = "Arbitrate";
   }

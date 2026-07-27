@@ -6,9 +6,11 @@ The core idea: different models with different prompts have different blind spot
 
 ## Demo
 
-<!-- Record a <60s screen recording (Cmd+Shift+5 on Mac) of pasting an output into
-     frontend.html and getting a verdict, then drag the .mov/.mp4 file here.
-     GitHub embeds video directly in READMEs. -->
+<!-- To add the demo: `docker compose up`, open http://localhost:8000, record a <60s
+     screen capture (Cmd+Shift+5 on Mac) of submitting the pre-filled example and
+     getting a verdict. Then edit this README on github.com and drag the .mov/.mp4
+     into the editor — GitHub uploads it and embeds the player inline. Replace the
+     line below with the URL it inserts. -->
 *[demo recording here]*
 
 ## Architecture
@@ -37,27 +39,46 @@ The core idea: different models with different prompts have different blind spot
 
 ## Running it
 
-**Option 1 — Docker (recommended):**
+You need an [Anthropic API key](https://console.anthropic.com/). Copy the example env file and fill it in:
 
 ```bash
-docker build -t llm-arbitration .
-docker run -p 8000:8000 -e ANTHROPIC_API_KEY=sk-ant-... llm-arbitration
+cp .env.example .env      # then edit .env and paste your key
+```
+
+**Option 1 — Docker Compose (recommended):**
+
+```bash
+docker compose up --build
 ```
 
 **Option 2 — local Python:**
 
 ```bash
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...        # or put it in a .env file
 uvicorn src.arbitration.api:app --reload
 ```
 
-Then open `http://localhost:8000/docs` for the interactive API, or open `frontend.html` in a browser to use the verdict explorer.
+Either way, open **http://localhost:8000** for the verdict explorer, or **http://localhost:8000/docs** for the interactive API.
 
 ## API
 
+- `GET /` — the single-page verdict explorer.
 - `POST /arbitrate` — submit a `question` and an `output`; returns a verdict with a unique id.
 - `GET /arbitrations/{id}` — retrieve a past verdict from the audit trail.
+
+```bash
+curl -X POST http://localhost:8000/arbitrate \
+  -H 'Content-Type: application/json' \
+  -d '{"question": "Why did the 1929 crash happen?", "output": "It caused WWII."}'
+```
+
+## Configuration
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `ANTHROPIC_API_KEY` | *(required)* | Authenticates the critic and adjudicator calls. |
+| `DB_PATH` | `arbitrations.db` | Where the SQLite audit trail is written. Compose sets this to `/app/data/arbitrations.db`, backed by the host `./data` directory, so verdicts survive `docker compose down`. |
 
 ## Example
 
@@ -73,11 +94,14 @@ The adjudicator then confirms the factual and logical errors, **resolves a sever
 
 ```
 src/arbitration/
-├── models.py    # Pydantic schemas (Critique, DisagreementReport, Verdict)
-├── critics.py   # LLM calls + critic/adjudicator prompts
-├── graph.py     # LangGraph orchestration + disagreement detector
-└── api.py       # async FastAPI service
+├── models.py       # Pydantic schemas (Critique, DisagreementReport, Verdict)
+├── critics.py      # LLM calls + critic/adjudicator prompts
+├── graph.py        # LangGraph orchestration + disagreement detector
+├── api.py          # async FastAPI service (also serves the frontend at /)
+└── frontend.html   # single-page verdict explorer
 ```
+
+`run_demo.py` runs the pipeline once from the command line and prints every critique, the disagreement report, and the final verdict — useful for seeing the internals without the API.
 
 ## Notes & limitations
 

@@ -1,13 +1,17 @@
 import json
+import os
 import sqlite3
 import uuid
 from contextlib import contextmanager
+from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
 
+import anthropic
 from fastapi import FastAPI, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
 from .graph import graph
@@ -25,9 +29,10 @@ class ArbitrationResponse(BaseModel):
 
 # --- Storage (SQLite) --------------------------------------------------------
 
-DB_PATH = "arbitrations.db"
+DB_PATH = os.getenv("DB_PATH", "arbitrations.db")
 
 def init_db():
+    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             "CREATE TABLE IF NOT EXISTS arbitrations ("
@@ -69,12 +74,47 @@ app.add_middleware(
 def startup():
     init_db()
 
+FRONTEND_PATH = Path(__file__).parent / "frontend.html"
+
+@app.get("/", include_in_schema=False)
+async def index():
+    return FileResponse(FRONTEND_PATH)
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(status_code=204)
+
+def upstream_error(exc: BaseException) -> anthropic.APIStatusError | None:
+    """Find an Anthropic API error in the exception chain.
+
+    LangGraph and instructor both re-raise, so the useful error (bad key, no
+    credit, rate limit) is buried several `raise ... from ...` levels down.
+    """
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        if isinstance(current, anthropic.APIStatusError):
+            return current
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return None
+
 @app.post("/arbitrate", response_model=ArbitrationResponse)
 async def arbitrate(request: ArbitrationRequest):
-    result = await run_in_threadpool(
-        graph.invoke,
-        {"question": request.question, "output": request.output, "critiques": []},
-    )
+    try:
+        result = await run_in_threadpool(
+            graph.invoke,
+            {"question": request.question, "output": request.output, "critiques": []},
+        )
+    except Exception as exc:
+        api_error = upstream_error(exc)
+        if api_error is None:
+            raise HTTPException(status_code=500, detail=f"Arbitration failed: {exc}")
+        detail = api_error.body.get("error", {}).get("message") if isinstance(api_error.body, dict) else str(api_error)
+        if api_error.status_code == 401:
+            detail = f"{detail} Check that ANTHROPIC_API_KEY in your .env is set and valid."
+        raise HTTPException(status_code=502, detail=f"Anthropic API error: {detail}")
+
     verdict = result["verdict"]
     arbitration_id = str(uuid.uuid4())
     save_arbitration(arbitration_id, request.question, request.output, verdict)

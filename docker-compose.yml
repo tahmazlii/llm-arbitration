@@ -1,0 +1,12 @@
+services:
+  arbitration:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # keep the audit trail on the host so verdicts survive container restarts
+      DB_PATH: /app/data/arbitrations.db
+    volumes:
+      - ./data:/app/data

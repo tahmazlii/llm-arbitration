@@ -70,7 +70,7 @@ def adjudicator_node(state: ArbitrationState) -> dict:
     verdict = run_adjudicator(
         state["output"],
         state["critiques"],
-        state["disagreements"],
+        state["disagreements"], # type: ignore
     )
     return {"verdict" : verdict}
 
