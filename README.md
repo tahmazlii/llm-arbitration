@@ -6,12 +6,14 @@ The core idea: different models with different prompts have different blind spot
 
 ## Demo
 
-<!-- To add the demo: `docker compose up`, open http://localhost:8000, record a <60s
-     screen capture (Cmd+Shift+5 on Mac) of submitting the pre-filled example and
-     getting a verdict. Then edit this README on github.com and drag the .mov/.mp4
-     into the editor — GitHub uploads it and embeds the player inline. Replace the
-     line below with the URL it inserts. -->
-*[demo recording here]*
+<!-- To add the screenshot: `docker compose up`, open http://localhost:8000, submit the
+     pre-filled example, then capture the verdict panel (Cmd+Shift+4 on Mac, or
+     Cmd+Shift+4 then Space for the whole window). Save it as docs/verdict.png and
+     uncomment the line below. Make sure the dismissed-flag section is in frame —
+     that's the adjudication, and it's what separates this from vote-counting. -->
+*[screenshot here]*
+<!-- ![A verdict: 2/10 with confirmed issues and a dismissed flag](docs/verdict.png) -->
+
 
 ## Architecture
 
